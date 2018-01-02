@@ -54,8 +54,10 @@ def action(name=None, url=None, static=False,
 class ActionResourceMixin(object):
     def prepend_urls(self):
         urls = super(ActionResourceMixin, self).prepend_urls()
-        action_methods = inspect.getmembers(type(self), predicate=is_action)
-        for name, method in action_methods:
+        for name in dir(self):
+            method = inspect.getattr_static(self, name)
+            if not getattr(method, 'is_action', False):
+                continue
             action_name = method.action_name or name
             url_name = 'api_action_' + action_name
             action_url = method.action_url
