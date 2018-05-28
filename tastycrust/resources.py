@@ -1,32 +1,44 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-from __future__ import unicode_literals
+
 import inspect
 from functools import wraps
-from django.conf.urls import url
-from tastypie.exceptions import ImmediateHttpResponse
-from tastypie.http import HttpUnauthorized
-from tastypie.utils import trailing_slash
 
+import collections
+from django.conf.urls import url
+from tastypie.utils import trailing_slash
 
 __all__ = ['ActionResourceMixin', 'action', 'is_action']
 
 
 def is_action(obj):
-    return inspect.ismethod(obj) and getattr(obj, 'is_action', False)
+    return inspect.isfunction(obj) and getattr(obj, 'is_action', False)
 
 
-def action(name=None, url=None, static=False,
-           allowed=None, login_required=False, throttled=False):
-
-    if callable(name):  # Used as @action without invoking
+def action(meta=None, name=None, url=None, static=False, fields={}, summary=None, type_list=True,
+           allowed=None, login_required=False, throttled=False, hidden_from_doc=False):
+    if isinstance(name, collections.Callable):  # Used as @action without invoking
         wrapped = name
         name = None
-    else:               # Used as @action(...)
+    else:  # Used as @action(...)
         wrapped = None
 
     def decorator(func):
+        if not hidden_from_doc and meta:
+            if not hasattr(meta, 'extra_actions'):
+                meta.extra_actions = []
+            for method in allowed:
+                extra_action = {
+                    "name": name,
+                    "http_method": method,
+                    "resource_type": 'list' if type_list else None,
+                    "summary": summary,
+                    "fields": fields,
+                    "authRequired": login_required,
+                    "notes": func.__doc__
+                }
+                meta.extra_actions.append(extra_action)
 
         @wraps(func)
         def wrapper(self, request, *args, **kwargs):
@@ -53,7 +65,7 @@ def action(name=None, url=None, static=False,
 
 class ActionResourceMixin(object):
     def prepend_urls(self):
-        urls = super(ActionResourceMixin, self).prepend_urls()
+        urls = super().prepend_urls()
         action_methods = inspect.getmembers(type(self), predicate=is_action)
         for name, method in action_methods:
             action_name = method.action_name or name

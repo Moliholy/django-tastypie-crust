@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
-import base64
-import collections
-import copy
-import urlparse
-import six
-from io import StringIO
-from django.http.multipartparser import MultiPartParserError
-from django.contrib import auth
-from django.utils.encoding import force_text
-from tastypie.serializers import Serializer, UnsupportedFormat
-from tastypie.bundle import Bundle
 
+import base64
+import copy
+import urllib.parse
+from io import StringIO
+
+import collections
+import six
+from django.contrib import auth
+from django.http.multipartparser import MultiPartParserError
+from django.utils.encoding import force_text
+from tastypie.bundle import Bundle
+from tastypie.serializers import Serializer, UnsupportedFormat
 
 __all__ = ['authenticate', 'AUTH_SOURCE_BASIC', 'AUTH_SOURCE_POST', 'owned']
 
@@ -31,7 +31,7 @@ def _serializer_factory(formats):
 
     class _Serializer(Serializer):
         def from_form(self, data):
-            return dict(urlparse.parse_qsl(data))
+            return dict(urllib.parse.parse_qsl(data))
 
         def from_form_data(self, data):
             try:
@@ -48,7 +48,7 @@ def _serializer_factory(formats):
     return _Serializer
 
 
-def AUTH_SOURCE_BASIC(request, formats=None):
+def AUTH_SOURCE_BASIC(request):
     try:
         auth_header = request.META['HTTP_AUTHORIZATION']
     except KeyError:
@@ -63,13 +63,13 @@ def AUTH_SOURCE_BASIC(request, formats=None):
 def AUTH_SOURCE_POST(request, formats=None):
     serializer = _serializer_factory(formats)()
     serializer.request = request
-    format = request.META.get('CONTENT_TYPE', 'application/json')
+    req_format = request.META.get('CONTENT_TYPE', 'application/json')
 
     data = request.body
     if isinstance(data, six.binary_type):
         data = force_text(data)
     try:
-        credentials = serializer.deserialize(data, format)
+        credentials = serializer.deserialize(data, req_format)
     except UnsupportedFormat:
         credentials = {}
     if not isinstance(credentials, collections.Mapping):
@@ -86,7 +86,6 @@ def authenticate(request, source=AUTH_SOURCE_POST, formats=None):
 
 
 def owned(attribute='user'):
-
     bundle = None
     if isinstance(attribute, Bundle):
         bundle = attribute
@@ -97,9 +96,9 @@ def owned(attribute='user'):
             user = getattr(bundle.obj, attribute, None)
         else:
             user = bundle.obj
-        return (user is not None and user == bundle.request.user)
+        return user is not None and user == bundle.request.user
 
     if bundle is None:  # Used as use_in=owned(...); invoked on resource setup
         return _owned
-    else:               # Used as use_in=owned and this is invoked by Tastypie
+    else:  # Used as use_in=owned and this is invoked by Tastypie
         return _owned(bundle)
